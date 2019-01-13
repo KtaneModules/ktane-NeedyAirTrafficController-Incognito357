@@ -13,8 +13,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: incognitoAirTrafficController
   title: Air Traffic Controller
-  description: Determine whether a plane should be departing, landing, or cruising,
+  description: 'Determine whether a plane should be departing, landing, or cruising,
     based on the origin and destination locations for the flight.
+
+
+    Manual:
+
+    HTML: https://ktane.timwi.de/HTML/Air%20Traffic%20Controller.html
+
+    PDF: https://github.com/Incognito357/ktane-NeedyAirTrafficController/blob/master/Manual/pdfs/NeedyModules/incognitoAirTrafficController.pdf'
   version: 1.0
   outputFolder: build
   previewImage: {fileID: 2800000, guid: 7430ee252bb5cc646ab97b98ae993b89, type: 3}
