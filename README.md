@@ -1,1 +1,1 @@
-#[ModKit Wiki](Manual/pdfs/NeedyModules/incognitoAirTrafficController.pdf)
+#[Manual](Manual/pdfs/NeedyModules/incognitoAirTrafficController.pdf)
