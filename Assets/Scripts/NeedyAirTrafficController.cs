@@ -1,5 +1,8 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
 using UnityEngine;
 
 public class NeedyAirTrafficController : MonoBehaviour {
@@ -67,9 +70,12 @@ public class NeedyAirTrafficController : MonoBehaviour {
     private void Awake()
     {
         KMNeedyModule needy = GetComponent<KMNeedyModule>();
+        KMBombInfo bomb = GetComponent<KMBombInfo>();
         needy.OnNeedyActivation += OnNeedyActivation;
         needy.OnNeedyDeactivation += OnNeedyDeactivation;
         needy.OnTimerExpired += OnTimerExpired;
+        bomb.OnBombExploded += delegate () { bombSolved = true; };
+        bomb.OnBombSolved += delegate () { bombSolved = true; };
 
         planeMats = new Renderer[3];
         for (int i = 0; i < 3; i++)
@@ -90,12 +96,12 @@ public class NeedyAirTrafficController : MonoBehaviour {
         int[] locs = new int[6];
         for (int i = 0; i < 6; i++)
         {
-            locs[i] = Random.Range(0, locations.Length);
+            locs[i] = UnityEngine.Random.Range(0, locations.Length);
             for (int j = 0; j < i; j++)
             {
                 if (locs[j] == locs[i])
                 {
-                    locs[i] = Random.Range(0, locations.Length);
+                    locs[i] = UnityEngine.Random.Range(0, locations.Length);
                     j = -1;
                 }
             }
@@ -108,17 +114,17 @@ public class NeedyAirTrafficController : MonoBehaviour {
 
         for (int i = 0; i < 3; i++)
         {
-            int orgInd = Random.Range(0, origins.Count);
-            int dstInd = Random.Range(0, destinations.Count);
-            int colInd = Random.Range(0, cols.Count);
-            int plnInd = Random.Range(0, plns.Count);
+            int orgInd = UnityEngine.Random.Range(0, origins.Count);
+            int dstInd = UnityEngine.Random.Range(0, destinations.Count);
+            int colInd = UnityEngine.Random.Range(0, cols.Count);
+            int plnInd = UnityEngine.Random.Range(0, plns.Count);
             int planeInd = plns[plnInd];
             plns.RemoveAt(plnInd);
 
-            int locInd = Random.Range(0, locList.Count);
+            int locInd = UnityEngine.Random.Range(0, locList.Count);
             int loc1 = locList[locInd];
             locList.RemoveAt(locInd);
-            locInd = Random.Range(0, locList.Count);
+            locInd = UnityEngine.Random.Range(0, locList.Count);
             int loc2 = locList[locInd];
             locList.RemoveAt(locInd);
 
@@ -138,6 +144,7 @@ public class NeedyAirTrafficController : MonoBehaviour {
             solution[planeInd] = grid[loc1][loc2];
             Debug.Log(org.text + " to " + dest.text + " is " + solution[plnInd] + " (" + (solution[planeInd] == 0 ? "DEP" : solution[planeInd] == 2 ? "ARR" : "CRZ") + ")");
         }
+        active = true;
     }
 
     protected void OnNeedyDeactivation()
@@ -161,6 +168,7 @@ public class NeedyAirTrafficController : MonoBehaviour {
                 gaveStrike = true;
             }
         }
+        active = false;
     }
 
     private void createSolution()
@@ -172,7 +180,7 @@ public class NeedyAirTrafficController : MonoBehaviour {
             foreach (string dest in locations)
             {
                 if (dest == orig) cat += "-1";
-                else cat += Random.Range(0, 3);
+                else cat += UnityEngine.Random.Range(0, 3);
                 if (dest != "PDX")
                 {
                     cat += ", ";
@@ -231,5 +239,69 @@ public class NeedyAirTrafficController : MonoBehaviour {
         }
         cat += "</tr></table>";
         Debug.Log(cat);
+    }
+
+    //twitch plays
+    private bool bombSolved = false;
+    private bool active = false;
+    #pragma warning disable 414
+    private readonly string TwitchHelpMessage = @"!{0} set <plane> <angle> [Sets the specified plane to the specified angle] | Valids planes are 1-3 from top to bottom and valid angles are (u)pward, (d)ownward, and (l)evel | Multiple planes may be set, for example: !{0} set 1 upward 3 level";
+    #pragma warning restore 414
+    IEnumerator ProcessTwitchCommand(string command)
+    {
+        string[] parameters = command.Split(' ');
+        if (Regex.IsMatch(parameters[0], @"^\s*set\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        {
+            if (parameters.Length == 1 || parameters.Length % 2 == 0)
+                yield break;
+            List<int> usedPlanes = new List<int>();
+            for (int i = 1; i < parameters.Length; i++)
+            {
+                if (i % 2 == 1)
+                {
+                    int temp = -1;
+                    if (!int.TryParse(parameters[i], out temp))
+                        yield break;
+                    if (temp < 1 || temp > 3)
+                        yield break;
+                    if (usedPlanes.Contains(temp))
+                        yield break;
+                    usedPlanes.Add(temp);
+                }
+                else
+                {
+                    string[] valids = { "upward", "u", "level", "l", "downward", "d" };
+                    if (!valids.Contains(parameters[i].ToLower()))
+                        yield break;
+                }
+            }
+            yield return null;
+            string[] angles = { "u", "l", "d" };
+            for (int i = 1; i < parameters.Length; i+=2)
+            {
+                while (planes[int.Parse(parameters[i]) - 1].GetComponent<PlaneState>().state != Array.IndexOf(angles, parameters[i + 1].ToLower().Replace("upward", "u").Replace("level", "l").Replace("downward", "d")))
+                {
+                    planes[int.Parse(parameters[i]) - 1].OnInteract();
+                    yield return new WaitForSeconds(0.1f);
+                }
+            }
+        }
+    }
+
+    void TwitchHandleForcedSolve()
+    {
+        //The code is done in a coroutine instead of here so that if the solvebomb command was executed this will just set all planes to their correct angles when it activates and it wont wait for its turn in the queue
+        StartCoroutine(DealWithNeedy());
+    }
+
+    private IEnumerator DealWithNeedy()
+    {
+        char[] angles = { 'u', 'l', 'd' };
+        while (!bombSolved)
+        {
+            while (!active) { yield return null; }
+            yield return ProcessTwitchCommand("set 1 " + angles[solution[0]] + " 2 " + angles[solution[1]] + " 3 " + angles[solution[2]]);
+            while (active) { yield return null; }
+        }
     }
 }
